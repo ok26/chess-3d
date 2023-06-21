@@ -49,10 +49,8 @@ public:
 	int getSquareWithOffset(int fromSquare, int offset) { return mailbox[mailbox64[fromSquare] + offset]; }
 
 	std::pair<int, int> getRookMoveFromCastle(Move move) {
-		if (move.getFlags() == QUEEN_CASTLE)
-			return { move.getFrom() - 4, move.getFrom() - 1 };
-		else
-			return { move.getFrom() + 3, move.getFrom() + 1 };
+		if (move.isQueenCastle()) return { move.getFrom() - 4, move.getFrom() - 1 };
+		else return { move.getFrom() + 3, move.getFrom() + 1 };
 	}
 	int getCapturedEpSquare(Move move) { return move.getFrom() + ((move.getTo() % 8) - (move.getFrom() % 8)); }
 

@@ -1,22 +1,25 @@
 #ifndef CHESS_MOVE_H
 #define CHESS_MOVE_H
 
-#define QUIET_MOVE 0
-#define DOUBLE_PAWN_PUSH 1
-#define KING_CASTLE 2
-#define QUEEN_CASTLE 3
-#define CAPTURE 4
-#define EP_CAPTURE 5
-#define KNIGHT_PROMOTION 8
-#define BISHOP_PROMOTION 9
-#define ROOK_PROMOTION 10
-#define QUEEN_PROMOTION 11
-#define KNIGHT_PROMOTION_CAP 12
-#define BISHOP_PROMOTION_CAP 13
-#define ROOK_PROMOTION_CAP 14
-#define QUEEN_PROMOTION_CAP 15
+#include "chessPiece.h"
 
-const int MAX_MOVES = 300;
+#define QUIET_MOVE				0b0000
+#define DOUBLE_PAWN_PUSH		0b0001
+#define KING_CASTLE				0b0010
+#define QUEEN_CASTLE			0b0011
+#define CAPTURE					0b0100
+#define EP_CAPTURE				0b0101
+#define KNIGHT_PROMOTION		0b1000
+#define BISHOP_PROMOTION		0b1001
+#define ROOK_PROMOTION			0b1010
+#define QUEEN_PROMOTION			0b1011
+#define KNIGHT_PROMOTION_CAP	0b1100
+#define BISHOP_PROMOTION_CAP	0b1101
+#define ROOK_PROMOTION_CAP		0b1110
+#define QUEEN_PROMOTION_CAP		0b1111
+
+const int MAX_AVAILABLE_MOVES = 300;
+const int MAX_GAME_MOVES = 1000;
 
 class Move {
 
@@ -40,18 +43,13 @@ public:
 	void setFrom(int from) { move &= ~0xfc0; move |= (from & 0x3f) << 6; }
 	void setFlags(int flags) { move &= ~0xf000; move |= (flags & 0xf) << 12; }
 
-	void reverseMove() {
-		int fromSquare = this->getFrom();
-		this->setFrom(this->getTo());
-		this->setTo(fromSquare);
-		this->setFlags(QUIET_MOVE); // Special moves have to be made independently 
-	}
-
 	bool isCapture() const { return this->getFlags() & CAPTURE; }
 	bool isPromotion() const { return this->getFlags() & (1 << 3); }
 	bool isEpCapture() const { return this->getFlags() == EP_CAPTURE; }
 	bool isCastle() const { return (this->getFlags() | 1) == QUEEN_CASTLE; }
 	bool isDoublePawnPush() const { return this->getFlags() == DOUBLE_PAWN_PUSH; }
+	bool isQueenCastle() const { return this->getFlags() == QUEEN_CASTLE; }
+	bool isKingCastle() const { return this->getFlags() == KING_CASTLE; }
 
 	bool operator==(Move a) const { return (move & 0xffff) == (a.move & 0xffff); }
 	bool operator!=(Move a) const { return (move & 0xffff) != (a.move & 0xffff); }
@@ -60,7 +58,7 @@ public:
 
 class ChessMoves {
 
-	Move moves[MAX_MOVES];
+	Move moves[MAX_AVAILABLE_MOVES];
 public:
 	int nMoves = 0;
 
@@ -72,6 +70,60 @@ public:
 	void addMove(int from, int to, int flags) {
 		moves[nMoves] = Move(from, to, flags);
 		nMoves++;
+	}
+
+	void removeMove(int index) {
+		if (index < 0 || index >= nMoves || nMoves == 0) return;
+		nMoves--;
+		moves[index] = moves[nMoves];
+	}
+};
+
+
+struct MadeMove {
+	Move move;
+	int movedPieceFlags;
+	Piece capturedPiece;
+	int previousEpCapture;
+	int halfMoveClock;
+};
+
+class MadeMoves {
+	MadeMove madeMoves[MAX_GAME_MOVES];
+	
+public:
+	int nMadeMoves = 0;
+	int maxMadeMoves = 0;
+
+	void resetMadeMoves() {
+		nMadeMoves = 0;
+		maxMadeMoves = 0;
+	}
+
+	void addMove(MadeMove move) {
+		madeMoves[nMadeMoves] = move;
+		nMadeMoves++;
+		if (maxMadeMoves < nMadeMoves) maxMadeMoves = nMadeMoves;
+	}
+
+	void popLastMove() {
+		nMadeMoves--;
+	}
+
+	MadeMove getLastMove() {
+		if (nMadeMoves == 0) return MadeMove();
+		return madeMoves[nMadeMoves - 1];
+	}
+
+	MadeMove getNextMove() {
+		if (nMadeMoves == maxMadeMoves) return MadeMove();
+		return madeMoves[nMadeMoves];
+		nMadeMoves++;
+	}
+
+	void updateLastPromotionMove(int promotion) {
+		Move& move = madeMoves[nMadeMoves - 1].move;
+		move.setFlags(move.getFlags() | promotion);
 	}
 };
 

@@ -36,7 +36,7 @@ public:
     }
 
     void draw() {
-        if (hasTexture) 
+        if (hasTexture)
             glBindTexture(GL_TEXTURE_2D, objTexture);
 
         glBindVertexArray(objectVAO);

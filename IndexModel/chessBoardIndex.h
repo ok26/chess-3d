@@ -11,9 +11,14 @@
 #include <sstream>
 #include <iostream>
 
+#define CHECKMATE 1
+#define STALEMATE 2
+#define INSUFFICIENT_MATERIAL 3
+#define REPETITION 4
+#define MOVE_RULE 5
+
 class ChessBoardIndex {
 
-	PieceList pieceList;
 	MoveGenerator moveGenerator;
 	
 	std::map<char, Piece> stringToBoard = {
@@ -32,14 +37,16 @@ class ChessBoardIndex {
 	};
 
 	int possibleEpCapture = -1;
-	std::pair<Move, Piece> madeMoves[100];
-	int nMadeMoves = 0;
+	int filteredMoves[MAX_AVAILABLE_MOVES];
 
 public:
 	Mailbox mailbox;
 	ChessMoves availableMoves;
+	PieceList pieceList;
+	MadeMoves madeMoves;
 	int sideToMove;
 	int promotedPawnSquare = -1;
+	int halfMoveClock = 0;
 	
 	void changeBoardState(std::string state) {
 
@@ -62,31 +69,64 @@ public:
 				continue;
 			}
 			mailbox[cur] = stringToBoard[statePart[i]];
-			pieceList.addPiece(cur, stringToBoard[statePart[i]].getColor());
+			pieceList.addPiece(cur, stringToBoard[statePart[i]].getColor(), mailbox[cur].getType());
 			cur++;
 		}
 
 		stateParts >> statePart;
 		sideToMove = statePart == "w" ? WHITE : BLACK;
+
+		stateParts >> statePart;
+		if (statePart.find('K') == string::npos) mailbox[63].setFlags(MOVED);
+		if (statePart.find('k') == string::npos) mailbox[7].setFlags(MOVED);
+		if (statePart.find('Q') == string::npos) mailbox[56].setFlags(MOVED);
+		if (statePart.find('q') == string::npos) mailbox[0].setFlags(MOVED);
+
+		stateParts >> statePart;//Implement en passant
+
+		stateParts >> statePart;
+		halfMoveClock = std::stoi(statePart);
+
 		possibleEpCapture = -1;
 		promotedPawnSquare = -1;
+		madeMoves.resetMadeMoves();
 		//Implement rest of Forsyth–Edwards Notation
-		moveGenerator.updatePossibleMoves(mailbox, pieceList, availableMoves, sideToMove);
+		updateAvailableMoves();
 	}
 
-	void printState() {
-		for (int i = 0; i < 64; i++) {
-			if (i != 0 && i % 8 == 0)
-				std::cout << "\n";
-			std::cout << mailbox[i].getType() << " ";
+	MadeMove getMadeMove(Move move) {
+		MadeMove madeMove;
+		madeMove.previousEpCapture = possibleEpCapture;
+		madeMove.movedPieceFlags = mailbox[move.getFrom()].getFlags();
+		madeMove.move = move;
+		madeMove.halfMoveClock = this->halfMoveClock;
+		if (move.isCapture()) {
+			int capturedSquare;
+			if (move.isEpCapture()) capturedSquare = mailbox.getCapturedEpSquare(move);
+			else capturedSquare = move.getTo();
+			madeMove.capturedPiece = mailbox[capturedSquare];
+			
 		}
-		std::cout << "\n";
+		return madeMove;
 	}
 
-	void makeMove(Move move, bool waitForSelection = false) {
+	int makeMove(Move move, bool waitForSelection = false, bool updateMoves = true, bool updateMadeMoves = true) {
+		if (updateMadeMoves) {
+			MadeMove madeMove = getMadeMove(move);
+			madeMoves.addMove(madeMove);
+		}
 
-		madeMoves[nMadeMoves] = { move, (move.isCapture() ? (move.isEpCapture() ? mailbox[possibleEpCapture] : mailbox[move.getTo()]) : Piece()) };
-		nMadeMoves++;
+		int promotionCause = 0;
+		halfMoveClock++;
+		if (mailbox[move.getFrom()].getType() == PAWN) halfMoveClock = 0;
+		if (move.isCapture()) {
+			halfMoveClock = 0;
+			int capturedSquare;
+			if (move.isEpCapture()) capturedSquare = mailbox.getCapturedEpSquare(move);
+			else capturedSquare = move.getTo();
+			pieceList.removePiece(capturedSquare, sideToMove ^ WHITE, mailbox[capturedSquare].getType());
+			mailbox[capturedSquare].setType(EMPTY);
+		}
 
 		if (possibleEpCapture != -1) {
 			mailbox[possibleEpCapture].setFlags(MOVED);
@@ -101,82 +141,93 @@ public:
 		else if (!piece.hasMoved())
 			piece.setFlags(MOVED);
 
-		pieceList.movePiece(move, mailbox, sideToMove);
+		pieceList.movePiece(move.getFrom(), move.getTo(), sideToMove);
 		mailbox.movePiece(move.getFrom(), move.getTo());
 		
 		if (move.isCastle()) {
 			std::pair<int, int> rookMove = mailbox.getRookMoveFromCastle(move);
 			mailbox.movePiece(rookMove.first, rookMove.second);
+			pieceList.movePiece(rookMove.first, rookMove.second, sideToMove);
 		}
 		else if (move.isPromotion()) {
 			promotedPawnSquare = move.getTo();
 			if (!waitForSelection)
-				updatePromotion(move.getFlags() & (~0x4));
+				promotionCause = updatePromotion((move.getFlags() & (~0x4)) - 8, updateMoves);
 		}
-		else if (move.isEpCapture())
-			mailbox[mailbox.getCapturedEpSquare(move)].setType(EMPTY);
 		
 		if (!move.isPromotion()) { //Promotion happens first, then moves are updated
 			sideToMove ^= WHITE;
-			moveGenerator.updatePossibleMoves(mailbox, pieceList, availableMoves, sideToMove);
+			if (updateMoves) {
+				updateAvailableMoves();
+				return checkGameEnded();
+			}
 		}
+		return promotionCause;
 	}
 
-	void unMakeLastMove() {
-		if (nMadeMoves == 0) return;
-		nMadeMoves--;
-		unMakeMove(madeMoves[nMadeMoves].first, madeMoves[nMadeMoves].second);
+	void unmakeLastMove(bool updateMoves = false) {
+		if (madeMoves.nMadeMoves == 0) return;
+
+		MadeMove lastMove = madeMoves.getLastMove();
+		Move& move = lastMove.move;
+		madeMoves.popLastMove();
+		unmakeMove(lastMove, updateMoves);
 	}
 
-	void unMakeMove(Move move, Piece capturedPiece) {
+	void unmakeMove(MadeMove& lastMove, bool updateMoves = false) {
+		halfMoveClock = lastMove.halfMoveClock;
+		Move& move = lastMove.move;
 		sideToMove ^= WHITE;
-		Move reverseMove = move;
-		reverseMove.reverseMove();
-		pieceList.movePiece(reverseMove, mailbox, sideToMove);
-		mailbox.movePiece(reverseMove.getFrom(), reverseMove.getTo());
+		possibleEpCapture = lastMove.previousEpCapture;
+		if (possibleEpCapture != -1) mailbox[possibleEpCapture].setFlags(EN_PASSANT);
+
+		mailbox.movePiece(move.getTo(), move.getFrom());
+		mailbox[move.getFrom()].setFlags(lastMove.movedPieceFlags);
+		if (move.isPromotion()) {
+			pieceList.nSpecPieces[sideToMove][mailbox[move.getFrom()].getType() - 1]--;
+			pieceList.nSpecPieces[sideToMove][PAWN - 1]++;
+			mailbox[move.getFrom()].setType(PAWN);
+		}
+		pieceList.movePiece(move.getTo(), move.getFrom(), sideToMove);
 
 		if (move.isCapture()) {
-			if (move.isEpCapture()) {
-				possibleEpCapture = mailbox.getCapturedEpSquare(move);
-				mailbox[possibleEpCapture] = capturedPiece;
-				mailbox[possibleEpCapture].setFlags(EN_PASSANT);
-				pieceList.addPiece(possibleEpCapture, sideToMove ^ WHITE);
-			}
-			else {
-				mailbox[reverseMove.getFrom()] = capturedPiece;
-				pieceList.addPiece(reverseMove.getFrom(), sideToMove ^ WHITE);
-			}
+			int capturedSquare;
+			if (move.isEpCapture()) capturedSquare = mailbox.getCapturedEpSquare(move);
+			else capturedSquare = move.getTo();
+			mailbox[capturedSquare] = lastMove.capturedPiece;
+			pieceList.addPiece(capturedSquare, sideToMove ^ WHITE, lastMove.capturedPiece.getType());
 		}
-		else if (move.isCastle()) {
+
+		if (move.isCastle()) {
 			std::pair<int, int> rookMove = mailbox.getRookMoveFromCastle(move);
 			mailbox.movePiece(rookMove.second, rookMove.first);
+			pieceList.movePiece(rookMove.second, rookMove.first, sideToMove);
 		}
-		else if (move.isDoublePawnPush()) {
-			mailbox[reverseMove.getTo()].setFlags(EMPTY);
-			possibleEpCapture = -1;
-		}
-		else if (move.isPromotion())
-			mailbox[reverseMove.getTo()].setType(PAWN);
-		
-		moveGenerator.updatePossibleMoves(mailbox, pieceList, availableMoves, sideToMove);
+
+		if (updateMoves)
+			updateAvailableMoves();
 	}
-	//*************************************************************************
-	// Issue is that moves do not remember flags
-	// Solution could be to add a structure with info instead of /
-	// big pairs, this might change in future but works for now
-	// The main, or actually only, issue is the "MOVED" flag
-	// --------------------IMPORTANT--------------------------
-	// Also remember that the move-unmaking ting is temporary
-	// Only the ability to do it BTS should be available
-	//*************************************************************************
 
+	//Well shit fix this motherf
 
+	void goForthMadeMoves() {
+		if (madeMoves.maxMadeMoves == madeMoves.nMadeMoves) return;
+		Move move = madeMoves.getNextMove().move;
+		makeMove(move);
+	}
 
-	void updatePromotion(int promotion) {
+	int updatePromotion(int promotion, bool updateMoves = true) {
 		mailbox[promotedPawnSquare].setType(KNIGHT + promotion);
+		madeMoves.updateLastPromotionMove(promotion);
+		pieceList.nSpecPieces[sideToMove][PAWN - 1]--;
+		pieceList.nSpecPieces[sideToMove][KNIGHT + promotion - 1]++;
 		sideToMove ^= WHITE;
-		moveGenerator.updatePossibleMoves(mailbox, pieceList, availableMoves, sideToMove);
 		promotedPawnSquare = -1;
+		if (updateMoves) {
+			updateAvailableMoves();
+			return checkGameEnded();
+		}
+		return 0;
 	}
 
 	//Very slow but only for visuals
@@ -187,12 +238,64 @@ public:
 				return move;
 		}
 	}
+	
+	void filterPseudoLegalMoves(ChessMoves& moves) {
+		int nFilteredMoves = 0;
+		for (int i = 0; i < moves.nMoves; i++) {
+			Move& move = moves[i];
 
-	void filterPseudoLegalMoves() {
-		for (int i = 0; i < availableMoves.nMoves; i++) {
-			Move& move = availableMoves[i];
+			if (move.isCastle()) {
+				int squareBesidesKing;
+				if (move.isQueenCastle()) squareBesidesKing = pieceList.getKingSquare(sideToMove) - 1;
+				else squareBesidesKing = pieceList.getKingSquare(sideToMove) + 1;
 
+				if (moveGenerator.squareIsAttacked(pieceList.getKingSquare(sideToMove), mailbox, sideToMove) ||
+					moveGenerator.squareIsAttacked(squareBesidesKing, mailbox, sideToMove)) {
+
+					filteredMoves[nFilteredMoves] = i;
+					nFilteredMoves++;
+					continue;
+				}
+			}
+			MadeMove madeMove = getMadeMove(move);
+			this->makeMove(move, false, false, false);
+			// Color is reversed because makeMove inverts it
+			if (moveGenerator.squareIsAttacked(pieceList.getKingSquare(sideToMove ^ WHITE), mailbox, sideToMove ^ WHITE)) {
+				filteredMoves[nFilteredMoves] = i;
+				nFilteredMoves++;
+			}
+			this->unmakeMove(madeMove);
 		}
+		for (int i = nFilteredMoves - 1; i >= 0; i--)
+			moves.removeMove(filteredMoves[i]);
+	}
+
+	void updateAvailableMoves() {
+		moveGenerator.updatePossibleMoves(mailbox, pieceList, availableMoves, sideToMove);
+		this->filterPseudoLegalMoves(availableMoves);
+	}
+
+	int checkGameEnded() {
+		std::cout << halfMoveClock << "\n";
+		if (availableMoves.nMoves == 0) {
+			if (!moveGenerator.squareIsAttacked(pieceList.kingSquare[sideToMove], mailbox, sideToMove))
+				return STALEMATE;
+			else
+				return CHECKMATE;
+		}
+		if (pieceList.nPieces[WHITE] <= 3 && pieceList.nPieces[BLACK] <= 3 && 
+			(pieceList.nPieces[WHITE] == 1 || 
+			(pieceList.nPieces[WHITE] == 2 && (pieceList.nSpecPieces[WHITE][BISHOP - 1] == 1 || pieceList.nSpecPieces[WHITE][KNIGHT - 1] == 1)) ||
+			(pieceList.nPieces[WHITE] == 3 && pieceList.nSpecPieces[WHITE][KNIGHT - 1] == 2))
+			&&
+			(pieceList.nPieces[BLACK] == 1 ||
+			(pieceList.nPieces[BLACK] == 2 && (pieceList.nSpecPieces[BLACK][BISHOP - 1] == 1 || pieceList.nSpecPieces[BLACK][KNIGHT - 1] == 1)) ||
+			(pieceList.nPieces[BLACK] == 3 && pieceList.nSpecPieces[BLACK][KNIGHT - 1] == 2)))
+			return INSUFFICIENT_MATERIAL;
+		if (halfMoveClock == 100)
+			return MOVE_RULE;
+
+		return 0;
 	}
 };
 

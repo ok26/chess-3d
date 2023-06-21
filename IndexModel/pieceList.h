@@ -2,99 +2,86 @@
 #define PIECE_LIST_H
 
 #include "chessPiece.h"
-#include "chessMove.h"
-#include "mailbox.h"
 
 class PieceList {
 
 	int board[64];
 public:
 
-	int nWhitePieces = 0, nBlackPieces = 0;
-	int whitePieces[16], blackPieces[16];
+	int nPieces[2] = { 0, 0 };
+	int nSpecPieces[2][6] = { {0,0,0,0,0,0}, {0,0,0,0,0,0} };
+	int pieces[2][16];
+	int kingSquare[2];
+
+	int operator [](const int i) const { return board[i]; }
+	int& operator [](const int i) { return board[i]; }
 
 	void resetPieceLists() {
-		nWhitePieces = 0;
-		nBlackPieces = 0;
+		nPieces[WHITE] = 0;
+		nPieces[BLACK] = 0;
+		kingSquare[WHITE] = -1;
+		kingSquare[BLACK] = -1;
 		for (int i = 0; i < 64; i++)
 			board[i] = -1;
+		for (int i = 0; i < 2; i++)
+			for (int j = 0; j < 6; j++)
+				nSpecPieces[i][j] = 0;
 	}
 
-	void movePiece(Move move, Mailbox mailbox, bool color) {
-		int fromSquare = move.getFrom();
-		int toSquare = move.getTo();
-		
-		if (move.isCapture()) {
-			int(&oppPieceList)[16] = (color == WHITE ? this->blackPieces : this->whitePieces);
-			int& nOppPieces = (color == WHITE ? this->nBlackPieces : this->nWhitePieces);
+	int& getKingSquare(int color) { return kingSquare[color]; }
 
-			int capturedSquare;
-			if (move.isEpCapture())
-				capturedSquare = mailbox.getCapturedEpSquare(move);
-			else
-				capturedSquare = move.getTo();
-			
-			nOppPieces--;
-			if (nOppPieces > 0) {
-				int index = board[capturedSquare];
-				oppPieceList[index] = oppPieceList[nOppPieces];
-				board[oppPieceList[index]] = index;
-			}
-			board[capturedSquare] = -1;
-			move.setFlags(QUIET_MOVE);
-			movePiece(move, mailbox, color);
-		}
-		else {
-
-			if (move.isCastle()) {
-				std::pair<int, int> rookMove = mailbox.getRookMoveFromCastle(move);
-				Move move(rookMove.first, rookMove.second, QUIET_MOVE);
-				movePiece(move, mailbox, color);
-			}
-
-			//Normal move
-			int(&pieceList)[16] = (color == WHITE ? this->whitePieces : this->blackPieces);
-			int index = board[fromSquare];
-
-			board[fromSquare] = -1;
-			board[toSquare] = index;
-			pieceList[index] = toSquare;
-
-			/*
-			std::cout << "WHITE PIECES: ";
-			for (int i = 0; i < nWhitePieces; i++)
-				std::cout << whitePieces[i] << " ";
-			std::cout << "-> " << nWhitePieces;
-			std::cout << "\nBLACK PIECES: ";
-			for (int i = 0; i < nBlackPieces; i++)
-				std::cout << blackPieces[i] << " ";
-			std::cout << "-> " << nBlackPieces;
-			std::cout << "\nBOARD\n";
-			for (int i = 0; i < 64; i++) {
-				if (i != 0 && i % 8 == 0)
-					std::cout << "\n";
-				std::cout << ((board[i] < 10 && board[i] != -1) ? "  " : " ") << board[i];
-			}
-			std::cout << "\n\n";
-			//*/
-		}
+	void addPiece(int square, int color, int type) {
+		board[square] = nPieces[color];
+		pieces[color][nPieces[color]] = square;
+		nPieces[color]++;
+		nSpecPieces[color][type - 1]++;
+		if (type == KING) kingSquare[color] = square;
 	}
 
-	void addPiece(int square, int color) {
-		if (color == WHITE) {
-			board[square] = nWhitePieces;
-			whitePieces[nWhitePieces] = square;
-			nWhitePieces++;
+	void removePiece(int square, int color, int type) {
+		nPieces[color]--;
+		nSpecPieces[color][type - 1]--;
+		if (nPieces[color] > 0) {
+			int index = board[square];
+			pieces[color][index] = pieces[color][nPieces[color]];
+			board[pieces[color][index]] = index;
 		}
-		else {
-			board[square] = nBlackPieces;
-			blackPieces[nBlackPieces] = square;
-			nBlackPieces++;
-		}
+		board[square] = -1;
 	}
 
-	void removePiece(int square, int color) {
-		//Implement
+	void movePiece(int fromSquare, int toSquare, bool color) {
+		if (fromSquare == kingSquare[WHITE]) kingSquare[WHITE] = toSquare;
+		else if (fromSquare == kingSquare[BLACK]) kingSquare[BLACK] = toSquare;
+
+		int index = board[fromSquare];
+		board[fromSquare] = -1;
+		board[toSquare] = index;
+		pieces[color][index] = toSquare;
+	}
+
+	void printData() {
+		for (int i = 0; i < 2; i++) {
+			std::cout << "\n";
+			for (int j = 0; j < 6; j++)
+				std::cout << nSpecPieces[i][j] << " ";
+		}
+		std::cout << "\n";
+		/*
+		std::cout << "WHITE PIECES: ";
+		for (int i = 0; i < nPieces[WHITE]; i++)
+			std::cout << pieces[WHITE][i] << " ";
+		std::cout << "-> " << nPieces[WHITE];
+		std::cout << "\nBLACK PIECES: ";
+		for (int i = 0; i < nPieces[BLACK]; i++)
+			std::cout << pieces[BLACK][i] << " ";
+		std::cout << "-> " << nPieces[BLACK];
+		std::cout << "\nBOARD\n";
+		for (int i = 0; i < 64; i++) {
+			if (i != 0 && i % 8 == 0)
+				std::cout << "\n";
+			std::cout << ((board[i] < 10 && board[i] != -1) ? "  " : " ") << board[i];
+		}
+		std::cout << "\n\n";*/
 	}
 };
 

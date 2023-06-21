@@ -18,15 +18,18 @@ class MoveGenerator {
 	};
 	int pieceOffsets[6] = { 0, 8, 4, 4, 8, 8 };
 	bool slidingPiece[6] = { false, false, true, true, true, false };
+
+	int filteredMoves[MAX_AVAILABLE_MOVES];
 	
 public:
 
 	void updatePossibleMoves(Mailbox& mailbox, PieceList& pieceList, ChessMoves& moves, int sideToMove) {
 
 		moves.resetMoves();
-		int (&piecePositions)[16] = (sideToMove ? pieceList.whitePieces : pieceList.blackPieces);
-		
-		for (int i = 0; i < 16; i++) {
+		int (&piecePositions)[16] = pieceList.pieces[sideToMove];
+		int& nPieces = pieceList.nPieces[sideToMove];
+
+		for (int i = 0; i < nPieces; i++) {
 			int& fromSquare = piecePositions[i];
 			Piece& piece = mailbox[fromSquare];
 
@@ -60,10 +63,6 @@ public:
 					Piece& queenRook = mailbox[row * 8];
 					bool queenSideEmpty = true, kingSideEmpty = true;
 
-					//****************************************************************************
-					// CANNOT CASTLE IF KING IS IN CHECK
-					//****************************************************************************
-
 					if (queenRook.getType() == ROOK && !queenRook.hasMoved()) {
 						for (int j = 0; j < 3 && queenSideEmpty; j++)
 							if (mailbox[row * 8 + 1 + j].getType() != EMPTY)
@@ -88,10 +87,10 @@ public:
 				if (sideToMove == WHITE) forwardOffset = -8;
 				else forwardOffset = 8;
 
-				bool squareBeforePromotion = false;
-				if ((sideToMove == WHITE && mailbox.getRow(fromSquare) == 1) ||
-					sideToMove == BLACK && mailbox.getRow(fromSquare) == 6)
-					squareBeforePromotion = true;
+				bool squareBeforePromotion = ((sideToMove == WHITE && mailbox.getRow(fromSquare) == 1) ||
+					sideToMove == BLACK && mailbox.getRow(fromSquare) == 6);
+				bool inStartingSquare = ((sideToMove == BLACK && mailbox.getRow(fromSquare) == 1) ||
+					sideToMove == WHITE && mailbox.getRow(fromSquare) == 6);
 
 				if (mailbox[fromSquare + forwardOffset].getType() == EMPTY) {
 					if (squareBeforePromotion) {
@@ -102,7 +101,7 @@ public:
 					}
 					else {
 						moves.addMove(fromSquare, fromSquare + forwardOffset, QUIET_MOVE);
-						if (!piece.hasMoved() && mailbox[fromSquare + 2 * forwardOffset].getType() == EMPTY)
+						if (inStartingSquare && mailbox[fromSquare + 2 * forwardOffset].getType() == EMPTY)
 							moves.addMove(fromSquare, fromSquare + 2 * forwardOffset, DOUBLE_PAWN_PUSH);
 					}
 				}
@@ -111,6 +110,36 @@ public:
 				addPawnCaptures(moves, pieceList, mailbox, fromSquare, forwardOffset, -1, sideToMove, squareBeforePromotion);
 			}
 		}
+	}
+
+	bool squareIsAttacked(int square, Mailbox& mailbox, int color) {
+		for (int piece = KNIGHT; piece <= KING; piece++) {
+			for (int i = 0; i < pieceOffsets[piece - 1]; i++) {
+				for (int toSquare = square;;) {
+					toSquare = mailbox.getSquareWithOffset(toSquare, pieceOffset[piece - 1][i]);
+					if (toSquare == -1)
+						break;
+
+					Piece& attackingPiece = mailbox[toSquare];
+					if (attackingPiece.getType() != EMPTY) {
+						if (attackingPiece.getColor() != color && attackingPiece.getType() == piece)
+							return true;
+						break;
+					}
+					if (!slidingPiece[piece - 1])
+						break;
+				}
+			}
+		}
+		int opposingPawnOffset;
+		if (color == WHITE) opposingPawnOffset = -10;
+		else opposingPawnOffset = 10;
+		Piece& possibleOppPawn1 = mailbox[mailbox.getSquareWithOffset(square, opposingPawnOffset + 1)];
+		Piece& possibleOppPawn2 = mailbox[mailbox.getSquareWithOffset(square, opposingPawnOffset - 1)];
+		if (possibleOppPawn1.getType() == PAWN && possibleOppPawn1.getColor() != color) return true;
+		if (possibleOppPawn2.getType() == PAWN && possibleOppPawn2.getColor() != color) return true;
+		
+		return false;
 	}
 
 

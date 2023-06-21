@@ -11,6 +11,7 @@
 
 #include "pieceModel.h"
 #include "worldObject.h"
+#include "animation.h"
 
 #include "../IndexModel/mailbox.h"
 #include "../IndexModel/Chessmove.h"
@@ -18,6 +19,7 @@
 #include "../Util/model.h"
 #include "../Util/shader.h"
 #include "../Util/readFiles.h"
+#include "../Util/convertCoordinates.h"
 
 #include <vector>
 #include <bitset>
@@ -37,12 +39,14 @@ class ChessBoardModel {
     unsigned int boardPlaneTexture;
     unsigned int boardFacadeTexture;
 
-    WorldObject selectedSquareIndicator1, selectedSquareIndicator2;
+    WorldObject selectedSquareIndicator1, selectedSquareIndicator2, hoveredPawnPromotionIndicator;
     Shader selectedSquareIndicatorShader;
 
     bool animateMove = false;
     
     int pieceHoveredDuringPawnPromotion = -1;
+    Animation flipBoardAnimation;
+    bool isFlipped = false;
 
 public:
     PieceModel piecesOnBoard[64];
@@ -53,18 +57,19 @@ public:
 
     void initialize(unsigned int boardVAO, int scr_width, int scr_height) {
         for (int i = 0; i < 64; i++)
-            piecesOnBoard[i].initialize(glm::vec3(-3.5 + i % 8, pieceYPosition, -3.5 + i / 8), -1);
+            piecesOnBoard[i].initialize(glm::vec3(-3.5 + i % 8, pieceYPosition, -3.5 + i / 8), 
+                                        glm::vec3(-3.5 + (7 - (i % 8)), pieceYPosition, -3.5 + (7 - i / 8)), -1);
 
         this->boardVAO = boardVAO;
         this->scr_height = scr_height;
         this->scr_width = scr_width;
 
-        pieceModels.push_back(Model("resources/models/chessPieces/pawn/Pawn.obj"));
-        pieceModels.push_back(Model("resources/models/chessPieces/knight/Knight.obj"));
-        pieceModels.push_back(Model("resources/models/chessPieces/bishop/Bishop.obj"));
-        pieceModels.push_back(Model("resources/models/chessPieces/rook/Rook.obj"));
-        pieceModels.push_back(Model("resources/models/chessPieces/queen/Queen.obj"));
-        pieceModels.push_back(Model("resources/models/chessPieces/king/King.obj"));
+        pieceModels.push_back(Model("resources/models/pawn/Pawn.obj"));
+        pieceModels.push_back(Model("resources/models/knight/Knight.obj"));
+        pieceModels.push_back(Model("resources/models/bishop/Bishop.obj"));
+        pieceModels.push_back(Model("resources/models/rook/Rook.obj"));
+        pieceModels.push_back(Model("resources/models/queen/Queen.obj"));
+        pieceModels.push_back(Model("resources/models/king/King.obj"));
 
         boardPlaneTexture = loadTexture("resources/textures/chessBoardPlane.png");
         boardFacadeTexture = loadTexture("resources/textures/chessBoardFacade.png");
@@ -76,8 +81,10 @@ public:
         unsigned int squareVAO = initializeVertexArray(squareVertexData);
         unsigned int selectedSquareTexture1 = loadTexture("resources/textures/circle.png");
         unsigned int selectedSquareTexture2 = loadTexture("resources/textures/hollowCircle.png");
+        unsigned int fullCircleTexture = loadTexture("resources/textures/fullCircle.png");
         selectedSquareIndicator1 = WorldObject(squareVAO, (int)squareVertexData.size() / 8, selectedSquareTexture1);
         selectedSquareIndicator2 = WorldObject(squareVAO, (int)squareVertexData.size() / 8, selectedSquareTexture2);
+        hoveredPawnPromotionIndicator = WorldObject(squareVAO, (int)squareVertexData.size() / 8, fullCircleTexture);
         selectedSquareIndicatorShader = Shader("resources/shaders/simpleColorShader.vs", "resources/shaders/simpleColorShader.fs");
         selectedSquareIndicatorShader.use();
         selectedSquareIndicatorShader.setInt("diffuseMap", 0);
@@ -109,30 +116,16 @@ public:
         }
     }
 
-    glm::vec3 convert2DCoordTo3D(int screenX, int screenY, float lowerBoundDepth, float targetY, glm::mat4& projection, glm::mat4& view) {
-
-        glm::vec4 viewPort = glm::vec4(0, 0, scr_width, scr_height);
-        glm::vec3 objCoord = glm::vec3(1.0f);
-
-        float depth = lowerBoundDepth;
-        do {
-            glm::vec3 winCoord = glm::vec3(screenX, scr_height - screenY - 1, (1.0f / depth - 10.0f) / (1.0f / 100.0f - 10.0f));
-            objCoord = glm::unProject(winCoord, view, projection, viewPort);
-            depth += 0.05f;
-        } while (objCoord.y > targetY + 0.05f);
-
-        objCoord.y = targetY;
-        return objCoord;
-    }
-
     int getClickedSquare(int clickedScreenX, int clickedScreenY, glm::mat4& projection, glm::mat4& view) {
         
-        glm::vec3 objCoord = convert2DCoordTo3D(clickedScreenX, clickedScreenY, 14.5f, pieceYPosition, projection, view);
+        glm::vec3 objCoord = convert2DCoordTo3D(clickedScreenX, clickedScreenY, scr_width, scr_height, 14.5f, pieceYPosition, projection, view);
         int sqX = (int)(objCoord.x + 4.0f);
         int sqZ = (int)(objCoord.z + 4.0f);
 
-        if (objCoord.x >= -4.0f && objCoord.x < 4.0f && objCoord.z >= -4.0f && objCoord.z < 4.0f)
-            return sqZ * 8 + sqX;
+        if (objCoord.x >= -4.0f && objCoord.x < 4.0f && objCoord.z >= -4.0f && objCoord.z < 4.0f) {
+            if (isFlipped) return (7 - sqZ) * 8 + (7 - sqX);
+            else return sqZ * 8 + sqX;
+        }
         else
             return -1;
         
@@ -239,11 +232,20 @@ public:
     
 	void draw(Shader& shader, glm::mat4& projection, glm::mat4& view, int mouseX, int mouseY) {
 
+        float animationRotation = 0.0f;
+        if (flipBoardAnimation.running) {
+            flipBoardAnimation.updateAnimation(glfwGetTime());
+            if (flipBoardAnimation.finished)
+                isFlipped ^= 1;
+            else
+                animationRotation = 180.0f * flipBoardAnimation.animationStep;
+        }
+
         //Chess board
         glBindVertexArray(boardVAO);
 
         glm::mat4 boardModel(1.0f);
-        boardModel = glm::rotate(boardModel, glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        boardModel = glm::rotate(boardModel, glm::radians(270.0f + 180.0f * isFlipped + animationRotation), glm::vec3(0.0f, 1.0f, 0.0f));
         shader.setMat4("model", boardModel);
 
         glBindTexture(GL_TEXTURE_2D, boardPlaneTexture);
@@ -258,10 +260,12 @@ public:
             selectedSquareIndicatorShader.setMat4("projection", projection);
             selectedSquareIndicatorShader.setMat4("view", view);
             selectedSquareIndicatorShader.setVec3("color", glm::vec3(0.1f, 0.4f, 1.0f));
+            selectedSquareIndicatorShader.setFloat("alpha", 0.3f);
             for (int i = 0; i < 64; i++)
                 if (availableMoves[selectedPieceSquare][i]) {
 
                     glm::mat4 model(1.0f);
+                    model = glm::rotate(model, glm::radians(180.0f * isFlipped + animationRotation), glm::vec3(0.0f, 1.0f, 0.0f));
                     model = glm::translate(model, piecesOnBoard[i].position + glm::vec3(0.0f, 0.02f, 0.0f));
                     selectedSquareIndicatorShader.setMat4("model", model);
                     if (piecesOnBoard[i].drawn) 
@@ -279,10 +283,11 @@ public:
                 unsigned int& texture = pieceTextures[piece.color];
 
                 glm::mat4 model = glm::mat4(1.0f);
+                model = glm::rotate(model, glm::radians(180.0f * isFlipped + animationRotation), glm::vec3(0.0f, 1.0f, 0.0f));
 
                 if (piece.followingMouse) {
-                    glm::vec3 mouse3DPos = convert2DCoordTo3D(mouseX, mouseY, 14.5f, pieceYPosition, projection, view);
-                    piece.followPosition(model, mouse3DPos);
+                    glm::vec3 mouse3DPos = convert2DCoordTo3D(mouseX, mouseY, scr_width, scr_height, 14.5f, pieceYPosition, projection, view);
+                    piece.followPosition(model, mouse3DPos, isFlipped);
                 }
                 else if (piece.movingToSquare != -1) {
                     piece.moveTowardsTargetedPosition(model);
@@ -335,18 +340,24 @@ public:
                 model = glm::translate(model, glm::vec3(-3.0f + 2.0f * pieceHoveredDuringPawnPromotion, 5.0f, 1.8f));
                 model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                 model = glm::rotate(model, glm::radians(-30.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-                model = glm::scale(model, glm::vec3(6.0f, 6.0f, 6.0f));
+                model = glm::scale(model, glm::vec3(2.45f, 2.45f, 2.45f));
                 selectedSquareIndicatorShader.use();
                 selectedSquareIndicatorShader.setMat4("projection", projection);
                 selectedSquareIndicatorShader.setMat4("view", view);
                 selectedSquareIndicatorShader.setVec3("color", glm::vec3(0.1f, 0.4f, 1.0f));
+                selectedSquareIndicatorShader.setFloat("alpha", 0.3f);
                 selectedSquareIndicatorShader.setMat4("model", model);
-                selectedSquareIndicator1.draw();
+                hoveredPawnPromotionIndicator.draw();
             }
             else
                 pieceHoveredDuringPawnPromotion = -1;
         }
 	}
+
+    void doFlipBoardAnimation() {
+        if (flipBoardAnimation.running) return;
+        flipBoardAnimation.doAnimation(1.0f, glfwGetTime());
+    }
 };
 
 #endif

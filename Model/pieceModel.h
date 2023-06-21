@@ -19,7 +19,7 @@ class PieceModel {
 
 public:
 
-	glm::vec3 position;
+	glm::vec3 position, flippedPosition;
 	Animation animation;
 	glm::vec3 animationTargetPos;
 	int type;
@@ -36,14 +36,16 @@ public:
 		color = WHITE;
 	}
 
-	void initialize(glm::vec3 position, int type) {
+	void initialize(glm::vec3 position, glm::vec3 flippedPosition, int type) {
 		this->position = position;
+		this->flippedPosition = flippedPosition;
 		this->type = type;
 		this->initialized = true;
 	}
 
-	void followPosition(glm::mat4& model, glm::vec3 targetPosition) {
-		model = glm::translate(model, targetPosition - this->position);
+	void followPosition(glm::mat4& model, glm::vec3 targetPosition, bool isFlipped) {
+		if (isFlipped) model = glm::translate(model, this->flippedPosition - targetPosition); // No clue why positions are flipped, it just works
+		else model = glm::translate(model, targetPosition - this->position);
 	}
 
 	void moveTowardsTargetedPosition(glm::mat4& model) {
