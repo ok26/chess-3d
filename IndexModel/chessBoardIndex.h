@@ -90,7 +90,7 @@ public:
 		possibleEpCapture = -1;
 		promotedPawnSquare = -1;
 		madeMoves.resetMadeMoves();
-		//Implement rest of Forsyth–Edwards Notation
+		//Implement rest of Forsythâ€“Edwards Notation
 		updateAvailableMoves();
 	}
 
@@ -207,8 +207,6 @@ public:
 		if (updateMoves)
 			updateAvailableMoves();
 	}
-
-	//Well shit fix this motherf
 
 	void goForthMadeMoves() {
 		if (madeMoves.maxMadeMoves == madeMoves.nMadeMoves) return;
