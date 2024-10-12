@@ -9,12 +9,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "worldObject.h"
+#include "model/world_object.h"
 
-#include "../Util/shader.h"
-#include "../Util/readFiles.h"
-#include "../Util/convertCoordinates.h"
-#include "../Util/textRender.h"
+#include "util/shader.h"
+#include "util/read_files.h"
+#include "util/convert_coords.h"
+#include "util/text_render.h"
 
 #include <vector>
 #include <string>
@@ -68,11 +68,11 @@ public:
 		this->scr_width = scr_width;
 		this->scr_height = scr_height;
 
-		std::vector<float> squareVertexData = loadVertexData("resources/vertexData/square.txt");
+		std::vector<float> squareVertexData = loadVertexData("src/resources/vertexData/square.txt");
 		squareVAO = initializeVertexArray(squareVertexData);
 		squareTriangleCount = squareVertexData.size() / 8;
-		unsigned int blankTexture = loadTexture("resources/textures/blank.png");
-		unsigned int fullCircleTexture = loadTexture("resources/textures/fullCircle.png");
+		unsigned int blankTexture = loadTexture("src/resources/textures/blank.png");
+		unsigned int fullCircleTexture = loadTexture("src/resources/textures/fullCircle.png");
 
 		background = WorldObject(squareVAO, squareTriangleCount, blankTexture);
 		textButtonBackground = WorldObject(squareVAO, squareTriangleCount, blankTexture);

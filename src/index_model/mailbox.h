@@ -1,8 +1,10 @@
 #ifndef MAILBOX_H
 #define MAILBOX_H
 
-#include "chessPiece.h"
-#include "chessMove.h"
+#include <utility>
+
+#include "index_model/piece.h"
+#include "index_model/move.h"
 
 class Mailbox {
 

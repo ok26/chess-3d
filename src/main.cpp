@@ -6,29 +6,29 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "Model/animation.h"
-#include "Model/chessBoardModel.h"
-#include "Model/worldObject.h"
-#include "Model/nameStorage.h"
-#include "Model/itemMenu.h"
-
-#include "IndexModel/chessBoardIndex.h"
-#include "IndexModel/chessMove.h"
-
-#include "ChessBot/moveGenerationTest.h"
-
-#include "Util/camera.h"
-#include "Util/shader.h"
-#include "Util/model.h"
-#include "Util/readFiles.h"
-#include "Util/textRender.h"
-
 #include <array>
 #include <map>
 #include <string>
 #include <algorithm>
 #include <chrono>
 #include <thread>
+
+#include "model/animation.h"
+#include "model/board.h"
+#include "model/world_object.h"
+#include "model/name_store.h"
+#include "model/item_menu.h"
+
+#include "index_model/board.h"
+#include "index_model/move.h"
+
+#include "util/camera.h"
+#include "util/shader.h"
+#include "util/model.h"
+#include "util/read_files.h"
+#include "util/text_render.h"
+
+
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -39,8 +39,8 @@ void configureShader(Shader& shader, glm::mat4& projection, glm::mat4& view);
 void processMenuEvent(GLFWwindow* window);
 void updateGameEnding(int gameEnding);
 
-const unsigned int SCR_WIDTH = 1920;
-const unsigned int SCR_HEIGHT = 1080;
+int SCR_WIDTH;
+int SCR_HEIGHT;
 const unsigned int FPS = 60;
 
 Camera camera(glm::vec3(0.0f, 15.5f, 6.7f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0, -67.0);
@@ -58,7 +58,6 @@ std::array<int, 3> keysUsedInProgram = { GLFW_KEY_C };
 ChessNameStore chessNameStore;
 ChessBoardModel chessModel;
 ChessBoardIndex chessIndex;
-Search testSearch;
 
 ItemMenu rightButtonMenu, leftButtonMenu;
 int evaluationTextID, lastMoveTextID, sideToMoveTextID, depthTextID, moveTextID, blackTextButtonID, 
@@ -87,7 +86,19 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Chess AI 3D", NULL, NULL);
+    GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+    if (primaryMonitor == nullptr) {
+        std::cerr << "Failed to get primary monitor" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    int xpos, ypos;
+    glfwGetMonitorWorkarea(primaryMonitor, &xpos, &ypos, &SCR_WIDTH, &SCR_HEIGHT);
+    SCR_WIDTH *= 0.95;
+    SCR_HEIGHT *= 0.95;
+
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Chess 3D", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -108,17 +119,17 @@ int main() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    Shader standardLightShader("resources/shaders/normalLightShader.vs", "resources/shaders/normalLightShader.fs");
-    Shader menuShader("resources/shaders/simpleColorShader.vs", "resources/shaders/simpleColorShader.fs");
-    Shader textShader("resources/shaders/textShader.vs", "resources/shaders/textShader.fs");
+    Shader standardLightShader("src/shaders/normalLightShader.vs", "src/shaders/normalLightShader.fs");
+    Shader menuShader("src/shaders/simpleColorShader.vs", "src/shaders/simpleColorShader.fs");
+    Shader textShader("src/shaders/textShader.vs", "src/shaders/textShader.fs");
 
-    std::vector<float> woodPlaneVertices = loadVertexData("resources/vertexData/woodPlane.txt");
-    std::vector<float> chessBoardVertices = loadVertexData("resources/vertexData/chessBoard.txt");
+    std::vector<float> woodPlaneVertices = loadVertexData("src/resources/vertexData/woodPlane.txt");
+    std::vector<float> chessBoardVertices = loadVertexData("src/resources/vertexData/chessBoard.txt");
 
     unsigned int woodPlaneVAO = initializeVertexArray(woodPlaneVertices);
     unsigned int chessBoardVAO = initializeVertexArray(chessBoardVertices);
 
-    unsigned int woodPlaneTexture = loadTexture("resources/textures/woodFloor.png");
+    unsigned int woodPlaneTexture = loadTexture("src/resources/textures/woodFloor.png");
     WorldObject woodPlane(woodPlaneVAO, (int)woodPlaneVertices.size() / 8, woodPlaneTexture);
 
     chessIndex.changeBoardState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -137,13 +148,13 @@ int main() {
 
     rightButtonMenu = ItemMenu(3, 6, glm::vec3(5.3f, 6.0f, 2.0f), 15.0f, SCR_WIDTH, SCR_HEIGHT);
     lastMoveTextID =    rightButtonMenu.addItem(TEXT, 0.1f, -0.6f, 2.8f, 0.5f, "Last Move: Kxb7", false, GREY, 0.9f);
-    goBackMoveID =      rightButtonMenu.addItem(ICON_BUTTON, -0.35f, -0.35f, 0.5f, 0.5f, "resources/textures/leftArrow.png", true, LIGHT_GREY, 1.0f);
-    goForthMoveID =     rightButtonMenu.addItem(ICON_BUTTON, 0.35f, -0.35f, 0.5f, 0.5f, "resources/textures/rightArrow.png", true, LIGHT_GREY, 1.0f);
+    goBackMoveID =      rightButtonMenu.addItem(ICON_BUTTON, -0.35f, -0.35f, 0.5f, 0.5f, "src/resources/textures/leftArrow.png", true, LIGHT_GREY, 1.0f);
+    goForthMoveID =     rightButtonMenu.addItem(ICON_BUTTON, 0.35f, -0.35f, 0.5f, 0.5f, "src/resources/textures/rightArrow.png", true, LIGHT_GREY, 1.0f);
     moveTextButtonID =  rightButtonMenu.addItem(TEXT_BUTTON, 0.0f, 0.25f, 1.5f, 0.5f, "Show Best Move", true, LIGHT_GREY, 1.0f);
     flipBoardID =       rightButtonMenu.addItem(TEXT_BUTTON, 0.0f, 0.45f, 1.5f, 0.5f, "Flip Board", true, LIGHT_GREY, 1.0f);
     resetBoardID =      rightButtonMenu.addItem(TEXT_BUTTON, 0.0f, 0.75f, 1.5f, 0.5f, "Reset Board", true, LIGHT_GREY, 1.0f);
 
-    textRenderer.initializeFont("resources/fonts/Antonio-Regular.ttf");
+    textRenderer.initializeFont("src/resources/fonts/Antonio-Regular.ttf");
 
     standardLightShader.use();
     standardLightShader.setInt("material.diffuse", 0);

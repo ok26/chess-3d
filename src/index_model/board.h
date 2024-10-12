@@ -1,10 +1,10 @@
 #ifndef CHESS_BOARD_H
 #define CHESS_BOARD_H
 
-#include "chessPiece.h"
-#include "chessMove.h"
-#include "moveGenerator.h"
-#include "mailbox.h"
+#include "index_model/piece.h"
+#include "index_model/move.h"
+#include "index_model/move_gen.h"
+#include "index_model/mailbox.h"
 
 #include <string>
 #include <map>
@@ -77,10 +77,10 @@ public:
 		sideToMove = statePart == "w" ? WHITE : BLACK;
 
 		stateParts >> statePart;
-		if (statePart.find('K') == string::npos) mailbox[63].setFlags(MOVED);
-		if (statePart.find('k') == string::npos) mailbox[7].setFlags(MOVED);
-		if (statePart.find('Q') == string::npos) mailbox[56].setFlags(MOVED);
-		if (statePart.find('q') == string::npos) mailbox[0].setFlags(MOVED);
+		if (statePart.find('K') == std::string::npos) mailbox[63].setFlags(MOVED);
+		if (statePart.find('k') == std::string::npos) mailbox[7].setFlags(MOVED);
+		if (statePart.find('Q') == std::string::npos) mailbox[56].setFlags(MOVED);
+		if (statePart.find('q') == std::string::npos) mailbox[0].setFlags(MOVED);
 
 		stateParts >> statePart;//Implement en passant
 
@@ -235,6 +235,7 @@ public:
 			if (move.getFrom() == fromPos && move.getTo() == toPos)
 				return move;
 		}
+		return Move();
 	}
 	
 	void filterPseudoLegalMoves(ChessMoves& moves) {

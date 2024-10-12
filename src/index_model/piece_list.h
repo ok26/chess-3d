@@ -1,7 +1,9 @@
 #ifndef PIECE_LIST_H
 #define PIECE_LIST_H
 
-#include "chessPiece.h"
+#include <iostream>
+
+#include "index_model/piece.h"
 
 class PieceList {
 

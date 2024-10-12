@@ -1,10 +1,10 @@
 #ifndef MOVE_GENERATOR_H
 #define MOVE_GENERATOR_H
 
-#include "chessPiece.h"
-#include "mailbox.h"
-#include "pieceList.h"
-#include "chessMove.h"
+#include "index_model/piece.h"
+#include "index_model/mailbox.h"
+#include "index_model/piece_list.h"
+#include "index_model/move.h"
 
 class MoveGenerator {
 

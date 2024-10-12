@@ -9,7 +9,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "animation.h"
+#include "model/animation.h"
 
 #define EMPTY 0
 #define BLACK 0

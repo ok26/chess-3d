@@ -9,20 +9,20 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "pieceModel.h"
-#include "worldObject.h"
-#include "animation.h"
-
-#include "../IndexModel/mailbox.h"
-#include "../IndexModel/Chessmove.h"
-
-#include "../Util/model.h"
-#include "../Util/shader.h"
-#include "../Util/readFiles.h"
-#include "../Util/convertCoordinates.h"
-
 #include <vector>
 #include <bitset>
+
+#include "model/piece.h"
+#include "model/world_object.h"
+#include "model/animation.h"
+
+#include "index_model/mailbox.h"
+#include "index_model/move.h"
+
+#include "util/model.h"
+#include "util/shader.h"
+#include "util/read_files.h"
+#include "util/convert_coords.h"
 
 const float pieceYPosition = 1.0f;
 const float moveAnimationDuration = 0.25f;
@@ -64,28 +64,28 @@ public:
         this->scr_height = scr_height;
         this->scr_width = scr_width;
 
-        pieceModels.push_back(Model("resources/models/pawn/Pawn.obj"));
-        pieceModels.push_back(Model("resources/models/knight/Knight.obj"));
-        pieceModels.push_back(Model("resources/models/bishop/Bishop.obj"));
-        pieceModels.push_back(Model("resources/models/rook/Rook.obj"));
-        pieceModels.push_back(Model("resources/models/queen/Queen.obj"));
-        pieceModels.push_back(Model("resources/models/king/King.obj"));
+        pieceModels.push_back(Model("src/resources/models/pawn/Pawn.obj"));
+        pieceModels.push_back(Model("src/resources/models/knight/Knight.obj"));
+        pieceModels.push_back(Model("src/resources/models/bishop/Bishop.obj"));
+        pieceModels.push_back(Model("src/resources/models/rook/Rook.obj"));
+        pieceModels.push_back(Model("src/resources/models/queen/Queen.obj"));
+        pieceModels.push_back(Model("src/resources/models/king/King.obj"));
 
-        boardPlaneTexture = loadTexture("resources/textures/chessBoardPlane.png");
-        boardFacadeTexture = loadTexture("resources/textures/chessBoardFacade.png");
+        boardPlaneTexture = loadTexture("src/resources/textures/chessBoardPlane.png");
+        boardFacadeTexture = loadTexture("src/resources/textures/chessBoardFacade.png");
 
-        pieceTextures[0] = loadTexture("resources/textures/blackPiece.png");
-        pieceTextures[1] = loadTexture("resources/textures/whitePiece.png");
+        pieceTextures[0] = loadTexture("src/resources/textures/blackPiece.png");
+        pieceTextures[1] = loadTexture("src/resources/textures/whitePiece.png");
 
-        std::vector<float> squareVertexData = loadVertexData("resources/vertexData/square.txt");
+        std::vector<float> squareVertexData = loadVertexData("src/resources/vertexData/square.txt");
         unsigned int squareVAO = initializeVertexArray(squareVertexData);
-        unsigned int selectedSquareTexture1 = loadTexture("resources/textures/circle.png");
-        unsigned int selectedSquareTexture2 = loadTexture("resources/textures/hollowCircle.png");
-        unsigned int fullCircleTexture = loadTexture("resources/textures/fullCircle.png");
+        unsigned int selectedSquareTexture1 = loadTexture("src/resources/textures/circle.png");
+        unsigned int selectedSquareTexture2 = loadTexture("src/resources/textures/hollowCircle.png");
+        unsigned int fullCircleTexture = loadTexture("src/resources/textures/fullCircle.png");
         selectedSquareIndicator1 = WorldObject(squareVAO, (int)squareVertexData.size() / 8, selectedSquareTexture1);
         selectedSquareIndicator2 = WorldObject(squareVAO, (int)squareVertexData.size() / 8, selectedSquareTexture2);
         hoveredPawnPromotionIndicator = WorldObject(squareVAO, (int)squareVertexData.size() / 8, fullCircleTexture);
-        selectedSquareIndicatorShader = Shader("resources/shaders/simpleColorShader.vs", "resources/shaders/simpleColorShader.fs");
+        selectedSquareIndicatorShader = Shader("src/shaders/simpleColorShader.vs", "src/shaders/simpleColorShader.fs");
         selectedSquareIndicatorShader.use();
         selectedSquareIndicatorShader.setInt("diffuseMap", 0);
     }

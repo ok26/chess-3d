@@ -1,7 +1,7 @@
 #ifndef CHESS_MOVE_H
 #define CHESS_MOVE_H
 
-#include "chessPiece.h"
+#include "index_model/piece.h"
 
 #define QUIET_MOVE				0b0000
 #define DOUBLE_PAWN_PUSH		0b0001
