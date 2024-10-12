@@ -119,9 +119,9 @@ int main() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    Shader standardLightShader("src/shaders/normalLightShader.vs", "src/shaders/normalLightShader.fs");
-    Shader menuShader("src/shaders/simpleColorShader.vs", "src/shaders/simpleColorShader.fs");
-    Shader textShader("src/shaders/textShader.vs", "src/shaders/textShader.fs");
+    Shader standardLightShader("src/shaders/normal_light.vs", "src/shaders/normal_light.fs");
+    Shader menuShader("src/shaders/simple_color.vs", "src/shaders/simple_color.fs");
+    Shader textShader("src/shaders/text.vs", "src/shaders/text.fs");
 
     std::vector<float> woodPlaneVertices = loadVertexData("src/resources/vertexData/woodPlane.txt");
     std::vector<float> chessBoardVertices = loadVertexData("src/resources/vertexData/chessBoard.txt");

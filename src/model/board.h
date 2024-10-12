@@ -85,7 +85,7 @@ public:
         selectedSquareIndicator1 = WorldObject(squareVAO, (int)squareVertexData.size() / 8, selectedSquareTexture1);
         selectedSquareIndicator2 = WorldObject(squareVAO, (int)squareVertexData.size() / 8, selectedSquareTexture2);
         hoveredPawnPromotionIndicator = WorldObject(squareVAO, (int)squareVertexData.size() / 8, fullCircleTexture);
-        selectedSquareIndicatorShader = Shader("src/shaders/simpleColorShader.vs", "src/shaders/simpleColorShader.fs");
+        selectedSquareIndicatorShader = Shader("src/shaders/simple_color.vs", "src/shaders/simple_color.fs");
         selectedSquareIndicatorShader.use();
         selectedSquareIndicatorShader.setInt("diffuseMap", 0);
     }
