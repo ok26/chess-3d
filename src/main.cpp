@@ -140,14 +140,14 @@ int main() {
     sideToMoveTextID =  leftButtonMenu.addItem(TEXT, 0.0f, -0.7f, 2.8f, 0.5f, sideToMoveText[WHITE], false, ORANGE, 0.9f);
     evaluationTextID =  leftButtonMenu.addItem(TEXT, 0.0f, -0.5f, 2.8f, 0.5f, "Evaluation: -0.25", false, RED, 1.0f);
     depthTextID =       leftButtonMenu.addItem(TEXT, 0.0f, -0.35f, 2.8f, 0.5f, "Depth: 7", false, LIGHT_GREY, 0.3f);
-    moveTextID =        leftButtonMenu.addItem(TEXT, 0.0f, -0.2f, 2.8f, 0.5f, "Move: Bxb7", false, PURPLE, 0.9f);
+    moveTextID =        leftButtonMenu.addItem(TEXT, 0.0f, -0.2f, 2.8f, 0.5f, "Move: --", false, PURPLE, 0.9f);
                         leftButtonMenu.addItem(TEXT, 0.0f, 0.25f, 2.8f, 0.5f, "AI Plays as:", true, GREY, 0.9f);
     whiteTextButtonID = leftButtonMenu.addItem(TEXT_BUTTON, -0.46f, 0.42f, 1.2f, 0.5f, "White", true, LIGHT_GREY, 1.0f);
     blackTextButtonID = leftButtonMenu.addItem(TEXT_BUTTON, 0.46f, 0.42f, 1.2f, 0.5f, "Black", true, LIGHT_GREY, 1.0f);
     quitButtonID =      leftButtonMenu.addItem(TEXT_BUTTON, 0.0f, 0.75f, 1.5f, 0.5f, "Quit", true, LIGHT_GREY, 1.0f);
 
     rightButtonMenu = ItemMenu(3, 6, glm::vec3(5.3f, 6.0f, 2.0f), 15.0f, SCR_WIDTH, SCR_HEIGHT);
-    lastMoveTextID =    rightButtonMenu.addItem(TEXT, 0.1f, -0.6f, 2.8f, 0.5f, "Last Move: Kxb7", false, GREY, 0.9f);
+    lastMoveTextID =    rightButtonMenu.addItem(TEXT, 0.1f, -0.6f, 2.8f, 0.5f, "Last Move: ---", false, GREY, 0.9f);
     goBackMoveID =      rightButtonMenu.addItem(ICON_BUTTON, -0.35f, -0.35f, 0.5f, 0.5f, "src/resources/textures/leftArrow.png", true, LIGHT_GREY, 1.0f);
     goForthMoveID =     rightButtonMenu.addItem(ICON_BUTTON, 0.35f, -0.35f, 0.5f, 0.5f, "src/resources/textures/rightArrow.png", true, LIGHT_GREY, 1.0f);
     moveTextButtonID =  rightButtonMenu.addItem(TEXT_BUTTON, 0.0f, 0.25f, 1.5f, 0.5f, "Show Best Move", true, LIGHT_GREY, 1.0f);
